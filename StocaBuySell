@@ -1,0 +1,165 @@
+//@version=6
+indicator("Stochastic Buy Sell", overlay=true)
+
+/// === INPUTS === ///
+targetGainPercent = input.float(5.5, title="Target Gain %", step=0.1)
+dipBuyPercent = input.float(5.0, title="Dip Buy Trigger (%)", step=0.1)
+kLength = input.int(4, title="%K Length")
+kSmoothing = input.int(4, title="%K Smoothing")
+dSmoothing = input.int(3, title="%D Smoothing")
+oversoldLevel = input.int(20, title="Oversold Level")
+
+/// === STOCHASTIC === ///
+k = ta.sma(ta.stoch(close, high, low, kLength), kSmoothing)
+d = ta.sma(k, dSmoothing)
+stochBelowNow = k < oversoldLevel and d < oversoldLevel
+stochBelowPrev = k[1] < oversoldLevel and d[1] < oversoldLevel
+stochCrossover = stochBelowNow and not stochBelowPrev
+
+/// === ARRAYS === ///
+var float[] stochBuyPrices = array.new<float>()
+var int[] stochBuyBars = array.new<int>()
+var int[] stochColorIds = array.new<int>()
+var int[] targetDurations = array.new<int>()
+var int[] tempSorted = array.new<int>()  // for sorting
+
+/// === DIP VARIABLES === ///
+var float dipBuy1Price = na
+var int dipBuy1Bar = na
+var float dipBuy2Price = na
+var int dipBuy2Bar = na
+var float dipBasePrice = na
+
+/// === COLORS === ///
+var color[] stochColors = array.from(color.blue, color.orange, color.fuchsia, color.teal, color.aqua, color.navy, color.maroon, color.black, color.gray, color.green, color.lime, color.olive, color.purple, color.silver, color.yellow)
+var int nextColorId = 0
+
+/// === LAST STOCH CHECK === ///
+lastStochActive = array.size(stochBuyPrices) > 0
+lastStochPrice = lastStochActive ? array.get(stochBuyPrices, array.size(stochBuyPrices) - 1) : na
+lastStochTargetHit = not lastStochActive or (close >= lastStochPrice * (1 + targetGainPercent / 100))
+
+/// === STOCHASTIC BUY === ///
+canBuyStoch = stochCrossover and (not lastStochActive or lastStochTargetHit or close < lastStochPrice)
+if canBuyStoch
+    array.push(stochBuyPrices, close)
+    array.push(stochBuyBars, bar_index)
+    array.push(stochColorIds, nextColorId)
+    label.new(bar_index, low, "🟦 B S", style=label.style_label_up, color=array.get(stochColors, nextColorId))
+    dipBuy1Price := na
+    dipBuy2Price := na
+    dipBuy1Bar := na
+    dipBuy2Bar := na
+    dipBasePrice := close
+    nextColorId := (nextColorId + 1) % array.size(stochColors)
+
+/// === STOCHASTIC TARGET === ///
+if array.size(stochBuyPrices) > 0
+    for i = array.size(stochBuyPrices) - 1 to 0
+        buyPrice = array.get(stochBuyPrices, i)
+        buyBar = array.get(stochBuyBars, i)
+        colorId = array.get(stochColorIds, i)
+        tradeColor = array.get(stochColors, colorId)
+        if close >= buyPrice * (1 + targetGainPercent / 100)
+            barsToTarget = bar_index - buyBar
+            label.new(bar_index, high, "🎯 S" + str.tostring(i + 1) + ": " + str.tostring(barsToTarget) + " days", style=label.style_label_down, color=tradeColor)
+            array.push(targetDurations, barsToTarget)
+            array.remove(stochBuyPrices, i)
+            array.remove(stochBuyBars, i)
+            array.remove(stochColorIds, i)
+
+/// === DIP BUY 1 === ///
+dip1Condition = not na(dipBasePrice) and na(dipBuy1Price) and close <= dipBasePrice * (1 - dipBuyPercent / 100)
+if dip1Condition
+    dipBuy1Price := close
+    dipBuy1Bar := bar_index
+    label.new(bar_index, low, "🔻 B D1", style=label.style_label_up, color=color.red)
+
+/// === DIP BUY 2 === ///
+dip2Condition = not na(dipBuy1Price) and na(dipBuy2Price) and close <= dipBuy1Price * (1 - dipBuyPercent / 100)
+if dip2Condition
+    dipBuy2Price := close
+    dipBuy2Bar := bar_index
+    label.new(bar_index, low, "🔻 B D2", style=label.style_label_up, color=color.rgb(200, 0, 0))
+
+/// === DIP TARGETS === ///
+if not na(dipBuy1Price) and close >= dipBuy1Price * (1 + targetGainPercent / 100)
+    barsToTarget = bar_index - dipBuy1Bar
+    label.new(bar_index, high, "🎯 D1: " + str.tostring(barsToTarget) + " days", style=label.style_label_down, color=color.red)
+    array.push(targetDurations, barsToTarget)
+    dipBuy1Price := na
+    dipBuy1Bar := na
+
+if not na(dipBuy2Price) and close >= dipBuy2Price * (1 + targetGainPercent / 100)
+    barsToTarget = bar_index - dipBuy2Bar
+    label.new(bar_index, high, "🎯 D2: " + str.tostring(barsToTarget) + " days", style=label.style_label_down, color=color.rgb(200, 0, 0))
+    array.push(targetDurations, barsToTarget)
+    dipBuy2Price := na
+    dipBuy2Bar := na
+
+/// === MEAN / MEDIAN / MODE === ///
+float mean = na
+float median = na
+float mode = na
+int count = array.size(targetDurations)
+
+if count > 0
+    total = 0
+    for i = 0 to count - 1
+        total += array.get(targetDurations, i)
+    mean := total / count
+
+    array.clear(tempSorted)
+    for i = 0 to count - 1
+        array.push(tempSorted, array.get(targetDurations, i))
+    array.sort(tempSorted, order.ascending)
+
+    median := count % 2 == 1 ? array.get(tempSorted, count / 2) : (array.get(tempSorted, count / 2 - 1) + array.get(tempSorted, count / 2)) / 2
+
+    int maxFreq = 0
+    int currentMode = na
+    for i = 0 to count - 1
+        value = array.get(tempSorted, i)
+        alreadyCounted = false
+        for k = 0 to i - 1
+            if array.get(tempSorted, k) == value
+                alreadyCounted := true
+                break
+        if not alreadyCounted
+            freq = 0
+            for j = 0 to count - 1
+                if array.get(tempSorted, j) == value
+                    freq += 1
+            if freq > maxFreq
+                maxFreq := freq
+                currentMode := value
+    mode := currentMode
+
+/// === TABLE: STATS (TOP RIGHT) === ///
+var table statsTable = table.new(position.top_right, 2, 4, border_width=1)
+if bar_index % 5 == 0 and not na(mean)
+    table.cell(statsTable, 0, 0, text="📊 Metric", text_color=color.white, bgcolor=color.gray)
+    table.cell(statsTable, 1, 0, text="Value " + str.tostring(count), text_color=color.white, bgcolor=color.gray)
+    table.cell(statsTable, 0, 1, text="Mean Days", text_color=color.white)
+    table.cell(statsTable, 1, 1, text=str.tostring(mean, "#.##"), text_color=color.white)
+    table.cell(statsTable, 0, 2, text="Median Days", text_color=color.white)
+    table.cell(statsTable, 1, 2, text=str.tostring(median), text_color=color.white)
+    table.cell(statsTable, 0, 3, text="Mode Days", text_color=color.white)
+    table.cell(statsTable, 1, 3, text=str.tostring(mode), text_color=color.white)
+
+/// === TABLE: DURATIONS (BOTTOM RIGHT) === ///
+var table durationsTable = table.new(position.bottom_right, 2, 2, border_width=1)
+if bar_index % 5 == 0 and count > 0
+    // Unsorted
+    string unsortedList = ""
+    for i = 0 to count - 1
+        unsortedList += str.tostring(array.get(targetDurations, i)) + (i < count - 1 ? ", " : "")
+    table.cell(durationsTable, 0, 0, text="Unsorted Days", text_color=color.white, bgcolor=color.blue)
+    table.cell(durationsTable, 1, 0, text=unsortedList, text_color=color.white)
+
+    // Sorted
+    string sortedList = ""
+    for i = 0 to count - 1
+        sortedList += str.tostring(array.get(tempSorted, i)) + (i < count - 1 ? ", " : "")
+    table.cell(durationsTable, 0, 1, text="Sorted Days", text_color=color.white, bgcolor=color.green)
+    table.cell(durationsTable, 1, 1, text=sortedList, text_color=color.white)
