@@ -1,0 +1,57 @@
+//@version=5
+indicator("Green Candle Pattern Finder", overlay=true)
+
+// Input for percentage difference
+percent_threshold = input.float(20.0, "Percentage Threshold")
+
+// Function to calculate the percentage difference
+percentage_diff(low, high) =>
+    100 * (high - low) / low
+
+// Initialize variables
+var float min_low = na
+var float max_high = na
+var bool in_pattern = false
+
+// Track the price levels to plot
+var float min_low_plot = na
+var float max_high_plot = na
+
+// Calculate the starting and ending indices for 10 years back
+var int start_bar_index = na
+var int end_bar_index = na
+
+// Determine the starting and ending indices for 10 years back
+if timeframe.isdaily
+    start_bar_index := last_bar_index
+    end_bar_index := last_bar_index
+
+// Detect green candle patterns
+if not na(start_bar_index) and not na(end_bar_index) and end_bar_index >= start_bar_index 
+    // Loop through each bar
+    for i = start_bar_index to end_bar_index
+        is_green = close[last_bar_index-i] > open[last_bar_index-i]
+
+        if is_green
+            if not in_pattern
+                min_low := low[last_bar_index-i]
+                max_high := high[last_bar_index-i]
+                in_pattern := true
+            else
+                min_low := math.min(min_low, low[last_bar_index-i])
+                max_high := math.max(max_high, high[last_bar_index-i])
+        else
+            if in_pattern
+                if percentage_diff(min_low, max_high) > percent_threshold
+                    // Conditionally set plot values
+                    min_low_plot := min_low
+                    max_high_plot := max_high
+                // Reset pattern variables
+                min_low := na
+                max_high := na
+                in_pattern := false
+
+// Plotting the horizontal lines
+plot(min_low_plot, color=color.blue, title="Min Low", linewidth=1, style=plot.style_line)
+plot(max_high_plot, color=color.blue, title="Max High", linewidth=1, style=plot.style_line)
+
