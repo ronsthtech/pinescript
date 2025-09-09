@@ -1,0 +1,36 @@
+//@version=5
+// Combined Indicator: SMAs + 52 Week High/Low
+indicator("SMAs + 52 Week High/Low", shorttitle="SMAs+52WL", overlay=true)
+
+// =======================
+// Simple Moving Averages
+// =======================
+len1 = input.int(50, minval=1, title="SMA 50 Length")
+src1 = input.source(close, title="SMA Source 50")
+out1 = ta.sma(src1, len1)
+plot(out1, title="SMA 50", color=color.yellow, linewidth=2)
+
+len2 = input.int(100, minval=1, title="SMA 100 Length")
+src2 = input.source(close, title="SMA Source 100")
+out2 = ta.sma(src2, len2)
+plot(out2, title="SMA 100", color=color.maroon, linewidth=2)
+
+len3 = input.int(200, minval=1, title="SMA 200 Length")
+src3 = input.source(close, title="SMA Source 200")
+out3 = ta.sma(src3, len3)
+plot(out3, title="SMA 200", color=color.purple, linewidth=2)
+
+
+// =======================
+// 52 Week High/Low
+// =======================
+// Trading day ~ 251
+per = input.int(251, title="52 Week Period")
+
+High52 = ta.highest(high, per)
+Low52 = ta.lowest(low, per)
+basis = math.avg(High52, Low52)
+
+plot(basis, title="Basis", color=color.new(#FF6D00, 0))
+plot(High52, title="52 Week High", linewidth=2, color=color.new(color.blue, 0))
+plot(Low52, title="52 Week Low", linewidth=2, color=color.new(color.red, 0))
