@@ -1,0 +1,67 @@
+//@version=6
+indicator("Multi-Timeframe RSI with Visibility Groups", overlay=false, max_lines_count=500, max_labels_count=500)
+
+//----------------------------------
+// Helper: RSI from any timeframe
+//----------------------------------
+getRSI(src, length, timeframe) =>
+    request.security(syminfo.tickerid, timeframe, ta.rsi(src, length))
+
+//----------------------------------
+// Inputs
+//----------------------------------
+// Group 1: RSI 14 (D/W/M)
+show_rsi14_multi   = input.bool(true,  "Show RSI 14 (Daily/Weekly/Monthly)", group="Group 1: RSI 14 Multi-Timeframe")
+show_rsi14_daily   = input.bool(true,  "Daily RSI 14",   inline="g1", group="Group 1: RSI 14 Multi-Timeframe")
+show_rsi14_weekly  = input.bool(true,  "Weekly RSI 14",  inline="g1", group="Group 1: RSI 14 Multi-Timeframe")
+show_rsi14_monthly = input.bool(true,  "Monthly RSI 14", inline="g1", group="Group 1: RSI 14 Multi-Timeframe")
+
+// Group 2: Daily RSI set (with sub-groups)
+show_rsi_multi_daily = input.bool(true, "Show RSI 14/50/200 (Daily)", group="Group 2: Daily RSI Set")
+
+// -- Sub-group: RSI 14
+show_rsi14_g2     = input.bool(true,  "Daily RSI 14",               group="Group 2: RSI 14")
+show_levels14_g2  = input.bool(true,  "Show OB/OS (70 / 30)",       group="Group 2: RSI 14")
+
+// -- Sub-group: RSI 50
+show_rsi50_g2     = input.bool(true,  "Daily RSI 50",               group="Group 2: RSI 50")
+show_levels50_g2  = input.bool(true,  "Show OB/OS (60 / 40)",       group="Group 2: RSI 50")
+
+// -- Sub-group: RSI 200
+show_rsi200_g2    = input.bool(true,  "Daily RSI 200",              group="Group 2: RSI 200")
+show_levels200_g2 = input.bool(true,  "Show OB/OS (55 / 45)",       group="Group 2: RSI 200")
+
+//----------------------------------
+// Calculations
+//----------------------------------
+// Group 1
+d_rsi14_g1 = getRSI(close, 14, "D")
+w_rsi14    = getRSI(close, 14, "W")
+m_rsi14    = getRSI(close, 14, "M")
+// Group 2
+d_rsi14_g2_val = getRSI(close, 14, "D")
+d_rsi50_val    = getRSI(close, 50, "D")
+d_rsi200_val   = getRSI(close, 200, "D")
+
+//----------------------------------
+// Plotting
+//----------------------------------
+// Group 1
+plot(show_rsi14_multi and show_rsi14_daily   ? d_rsi14_g1 : na, color=color.blue,   title="Daily RSI 14 (G1)",   linewidth=1)
+plot(show_rsi14_multi and show_rsi14_weekly  ? w_rsi14    : na, color=color.green,  title="Weekly RSI 14 (G1)", linewidth=1)
+plot(show_rsi14_multi and show_rsi14_monthly ? m_rsi14    : na, color=color.purple, title="Monthly RSI 14 (G1)", linewidth=1)
+
+// Group 2: RSI lines
+plot(show_rsi_multi_daily and show_rsi14_g2  ? d_rsi14_g2_val : na, color=color.blue,   title="Daily RSI 14 (G2)", linewidth=1)
+plot(show_rsi_multi_daily and show_rsi50_g2  ? d_rsi50_val    : na, color=color.orange, title="Daily RSI 50 (G2)", linewidth=1)
+plot(show_rsi_multi_daily and show_rsi200_g2 ? d_rsi200_val   : na, color=color.red,    title="Daily RSI 200 (G2)", linewidth=1)
+
+// Group 2: OB/OS toggleable constant lines (use plot, not hline)
+plot(show_rsi_multi_daily and show_rsi14_g2  and show_levels14_g2  ? 70 : na, title="OB RSI 14 (70)", color=color.new(color.blue,   65), linewidth=1)
+plot(show_rsi_multi_daily and show_rsi14_g2  and show_levels14_g2  ? 30 : na, title="OS RSI 14 (30)", color=color.new(color.blue,   65), linewidth=1)
+
+plot(show_rsi_multi_daily and show_rsi50_g2  and show_levels50_g2  ? 60 : na, title="OB RSI 50 (60)", color=color.new(color.orange, 65), linewidth=1)
+plot(show_rsi_multi_daily and show_rsi50_g2  and show_levels50_g2  ? 40 : na, title="OS RSI 50 (40)", color=color.new(color.orange, 65), linewidth=1)
+
+plot(show_rsi_multi_daily and show_rsi200_g2 and show_levels200_g2 ? 55 : na, title="OB RSI 200 (55)", color=color.new(color.red,    65), linewidth=1)
+plot(show_rsi_multi_daily and show_rsi200_g2 and show_levels200_g2 ? 45 : na, title="OS RSI 200 (45)", color=color.new(color.red,    65), linewidth=1)
